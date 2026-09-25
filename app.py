@@ -2,10 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+import shap
 
 model = pickle.load(open('model.pkl', 'rb'))
 scaler = pickle.load(open('scaler.pkl', 'rb'))
 columns = pickle.load(open('columns.pkl', 'rb'))
+X_train_scaled = pickle.load(open('X_train_scaled.pkl', 'rb'))
+explainer = shap.LinearExplainer(model, X_train_scaled)
 
 st.title("Credit Risk Predictor")
 st.write("Enter applicant details to predict loan risk")
@@ -40,3 +43,15 @@ if st.button("Predict Risk"):
         st.error(f"⚠️ Bad Risk — Probability of default: {prob:.1%}")
     else:
         st.success(f"✅ Good Risk — Probability of default: {prob:.1%}")
+
+    shap_values = explainer.shap_values(new_data_scaled)
+    contributions = pd.DataFrame({
+        'feature': columns,
+        'shap_value': shap_values[0]
+    }).sort_values('shap_value', key=abs, ascending=False)
+
+    st.subheader("Top factors influencing this prediction")
+    for _, row in contributions.head(5).iterrows():
+        direction = "🔺 increases risk" if row['shap_value'] > 0 else "🔻 decreases risk"
+        st.write(f"**{row['feature']}**: {direction} ({row['shap_value']:.3f})")
+    st.caption("Note: feature names reflect encoded categories — e.g. 'Sex_male' contributing to risk reflects this applicant's sex value, whether male or female, not that the applicant is specifically male.")
